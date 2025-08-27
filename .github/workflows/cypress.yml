@@ -4,14 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       grep_tag:
-        description: 'Cypress test tag (exp: regression, smoke, stage, prod)'
+        description: 'Cypress test tag (ör: regression, smoke, stage, prod)'
         required: true
         default: 'regression'
 
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        folder:
+          - 1-getting-started
+          - 2-advanced-examples
+    outputs:
+      video-dir: ${{ steps.set-output.outputs.video-dir }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,7 +28,44 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm i
+        run: npm ci
 
-      - name: Run Cypress tests with tag
-        run: npx cypress run --env grepTags=${{ github.event.inputs.grep_tag }}
+      - name: Run Cypress tests for folder ${{ matrix.folder }}
+        run: |
+          npx cypress run \
+            --spec "cypress/e2e/${{ matrix.folder }}/**/*.cy.js" \
+            --env grepTags=${{ github.event.inputs.grep_tag }} \
+            --videosFolder="cypress/videos-${{ matrix.folder }}" \
+            --screenshotsFolder="cypress/screenshots-${{ matrix.folder }}"
+
+      - name: Upload video artifact for ${{ matrix.folder }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos-${{ matrix.folder }}
+          path: cypress/videos-${{ matrix.folder }}
+
+      - name: Upload screenshot artifact for ${{ matrix.folder }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.folder }}
+          path: cypress/screenshots-${{ matrix.folder }}
+
+  merge-artifacts:
+    needs: cypress-run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all video artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: merged-artifacts
+
+      - name: Merge all videos into one folder
+        run: |
+          mkdir -p all-videos
+          find merged-artifacts -type f -name '*.mp4' -exec cp {} all-videos/ \\;
+
+      - name: Upload merged video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-cypress-videos
+          path: all-videos
