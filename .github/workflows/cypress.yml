@@ -16,8 +16,7 @@ jobs:
         folder:
           - 1-getting-started
           - 2-advanced-examples
-    outputs:
-      video-dir: ${{ steps.set-output.outputs.video-dir }}
+      fail-fast: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,29 +42,40 @@ jobs:
         with:
           name: videos-${{ matrix.folder }}
           path: cypress/videos-${{ matrix.folder }}
+          retention-days: 5
+          if-no-files-found: warn
 
       - name: Upload screenshot artifact for ${{ matrix.folder }}
         uses: actions/upload-artifact@v4
         with:
           name: screenshots-${{ matrix.folder }}
           path: cypress/screenshots-${{ matrix.folder }}
+          retention-days: 5
+          if-no-files-found: ignore
 
   merge-artifacts:
     needs: cypress-run
     runs-on: ubuntu-latest
+    if: always()
     steps:
       - name: Download all video artifacts
         uses: actions/download-artifact@v4
         with:
           path: merged-artifacts
+          pattern: videos-*
+          merge-multiple: true
+
+      - name: Create merged videos directory
+        run: mkdir -p all-videos
 
       - name: Merge all videos into one folder
         run: |
-          mkdir -p all-videos
-          find merged-artifacts -type f -name '*.mp4' -exec cp {} all-videos/ \\;
+          find merged-artifacts -type f -name '*.mp4' -exec cp {} all-videos/ \;
 
       - name: Upload merged video artifact
         uses: actions/upload-artifact@v4
         with:
           name: all-cypress-videos
           path: all-videos
+          retention-days: 5
+          if-no-files-found: warn
