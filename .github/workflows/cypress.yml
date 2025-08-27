@@ -34,8 +34,7 @@ jobs:
           npx cypress run \
             --spec "cypress/e2e/${{ matrix.folder }}/**/*.cy.js" \
             --env grepTags=${{ github.event.inputs.grep_tag }} \
-            --videosFolder="cypress/videos-${{ matrix.folder }}" \
-            --screenshotsFolder="cypress/screenshots-${{ matrix.folder }}"
+            --config "videosFolder=cypress/videos-${{ matrix.folder }},screenshotsFolder=cypress/screenshots-${{ matrix.folder }}"
 
       - name: Upload video artifact for ${{ matrix.folder }}
         uses: actions/upload-artifact@v4
