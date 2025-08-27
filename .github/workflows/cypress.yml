@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       grep_tag:
-        description: 'Cypress test tag (ör: regression, smoke, stage, prod)'
+        description: 'Cypress test tag (Exp: regression, smoke, stage, prod)'
         required: true
         default: 'regression'
 
@@ -51,17 +51,43 @@ jobs:
           path: cypress/screenshots-${{ matrix.folder }}
           retention-days: 5
           if-no-files-found: ignore
+          
+      - name: Upload JUnit results for ${{ matrix.folder }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.folder }}
+          path: cypress/results/junit
+          retention-days: 5
+          if-no-files-found: warn
 
   merge-artifacts:
     needs: cypress-run
     runs-on: ubuntu-latest
     if: always()
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm i
+        
       - name: Download all video artifacts
         uses: actions/download-artifact@v4
         with:
-          path: merged-artifacts
+          path: merged-artifacts/videos
           pattern: videos-*
+          merge-multiple: true
+
+      - name: Download all JUnit reports
+        uses: actions/download-artifact@v4
+        with:
+          path: merged-artifacts/junit
+          pattern: junit-*
           merge-multiple: true
 
       - name: Create merged videos directory
@@ -69,12 +95,30 @@ jobs:
 
       - name: Merge all videos into one folder
         run: |
-          find merged-artifacts -type f -name '*.mp4' -exec cp {} all-videos/ \;
+          find merged-artifacts/videos -type f -name '*.mp4' -exec cp {} all-videos/ \;
+
+      - name: Create junit results directory
+        run: mkdir -p cypress/results/junit
+
+      - name: Copy JUnit results to cypress directory
+        run: |
+          cp -r merged-artifacts/junit/* cypress/results/junit/ || true
+          
+      - name: Merge JUnit reports
+        run: npx junit-merge -d cypress/results/junit -o cypress/results/junit/results.xml
 
       - name: Upload merged video artifact
         uses: actions/upload-artifact@v4
         with:
           name: all-cypress-videos
           path: all-videos
+          retention-days: 5
+          if-no-files-found: warn
+          
+      - name: Upload merged JUnit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-merged-report
+          path: cypress/results/junit/results.xml
           retention-days: 5
           if-no-files-found: warn
